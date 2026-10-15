@@ -47,3 +47,7 @@ pnpm dev
 ```
 
 Your app template should now be running on [localhost:3000](http://localhost:3000/).
+
+## iOS 語音筆記 App（語記 / VoiceNote）
+
+`ios/VoiceNote/` 是一個獨立的 SwiftUI iOS App：即時語音辨識筆記，支援自訂字典、「記下這三點」口說分段、「改 3 點」自我更正，而且原文永遠保留。說明請看 [ios/VoiceNote/README.md](ios/VoiceNote/README.md)。

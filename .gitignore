@@ -36,3 +36,11 @@ yarn-error.log*
 .env
 .vercel
 .vscode
+
+# Xcode / Swift Package
+ios/**/xcuserdata/
+ios/**/*.xcworkspace/xcuserdata/
+ios/**/.build/
+ios/**/.swiftpm/
+ios/**/Generated/
+ios/**/DerivedData/
