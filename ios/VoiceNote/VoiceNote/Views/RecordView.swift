@@ -13,6 +13,8 @@ struct RecordView: View {
     @State private var isRunningAI = false
     @State private var errorMessage: String?
     @State private var savedBannerVisible = false
+    @State private var isTranscribingCloud = false
+    @State private var cloudApplied = false
 
     private var rawText: String { recognizer.liveText }
 
@@ -39,6 +41,12 @@ struct RecordView: View {
             .task {
                 if permissionGranted == nil {
                     permissionGranted = await recognizer.requestPermissions()
+                }
+            }
+            .onChange(of: recognizer.state) { oldState, newState in
+                // 錄音收尾完成 → 自動送雲端重辨識（中英夾雜）
+                if oldState == .stopping, newState == .idle, settings.cloudTranscribeAfterStop, settings.hasOpenAIKey {
+                    Task { await runCloudTranscription() }
                 }
             }
             .alert("出錯了", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
@@ -69,8 +77,13 @@ struct RecordView: View {
                     if rawText.isEmpty {
                         emptyHint
                     } else {
-                        section(title: "原文（即時）", badge: recognizer.isOnDevice ? "裝置端辨識" : "雲端辨識") {
+                        section(title: cloudApplied ? "原文（雲端重辨識，中英）" : "原文（即時草稿）", badge: rawBadge) {
                             Text(attributedLive)
+                        }
+                        if isTranscribingCloud {
+                            Label("雲端重辨識中（中英夾雜）…", systemImage: "icloud.and.arrow.up")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
                         }
                         if showPreview {
                             section(title: aiText == nil ? "整理預覽（本機規則）" : "整理預覽（Claude）", badge: nil) {
@@ -89,6 +102,11 @@ struct RecordView: View {
                 withAnimation { proxy.scrollTo("bottom", anchor: .bottom) }
             }
         }
+    }
+
+    private var rawBadge: String {
+        if cloudApplied { return "OpenAI" }
+        return recognizer.isOnDevice ? "Apple 裝置端" : "Apple 雲端"
     }
 
     private var attributedLive: AttributedString {
@@ -116,6 +134,13 @@ struct RecordView: View {
                 hintRow("換行 / 新段落", "換行或空一行")
                 hintRow("下午 2 點…改 3 點", "自我更正，只留最後說的")
                 hintRow("不對，是星期四", "同上")
+            }
+            if settings.hasOpenAIKey {
+                Text("已設定 OpenAI key：停止錄音後會自動重新辨識，中英夾雜也沒問題。")
+                    .font(.footnote).foregroundStyle(.secondary)
+            } else {
+                Text("中英夾雜講話會認錯？到「設定」填 OpenAI API key，停止後會用雲端重新辨識。")
+                    .font(.footnote).foregroundStyle(.secondary)
             }
             .padding()
             .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
@@ -165,13 +190,20 @@ struct RecordView: View {
                     .frame(width: 84, height: 84)
                     .background(recognizer.isListening ? Color.red : Color.accentColor, in: Circle())
             }
-            .disabled(permissionGranted == false || isRunningAI)
+            .disabled(permissionGranted == false || isRunningAI || isTranscribingCloud)
 
             HStack(spacing: 12) {
                 Button(role: .destructive) { clear() } label: {
                     Label("清除", systemImage: "trash")
                 }
-                .disabled(rawText.isEmpty || recognizer.isListening)
+                .disabled(rawText.isEmpty || recognizer.isListening || isTranscribingCloud)
+
+                if settings.hasOpenAIKey, recognizer.lastRecordingURL != nil, !cloudApplied {
+                    Button { Task { await runCloudTranscription() } } label: {
+                        if isTranscribingCloud { ProgressView() } else { Label("中英重辨識", systemImage: "globe") }
+                    }
+                    .disabled(recognizer.isListening || isTranscribingCloud)
+                }
 
                 Spacer()
 
@@ -183,14 +215,14 @@ struct RecordView: View {
                             Label("AI 整理", systemImage: "sparkles")
                         }
                     }
-                    .disabled(rawText.isEmpty || recognizer.isListening || isRunningAI)
+                    .disabled(rawText.isEmpty || recognizer.isListening || isRunningAI || isTranscribingCloud)
                 }
 
                 Button { save() } label: {
                     Label("儲存", systemImage: "square.and.arrow.down")
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(rawText.isEmpty || recognizer.isListening || isRunningAI)
+                .disabled(rawText.isEmpty || recognizer.isListening || isRunningAI || isTranscribingCloud)
             }
             .buttonStyle(.bordered)
         }
@@ -220,6 +252,7 @@ struct RecordView: View {
             return
         }
         aiText = nil
+        cloudApplied = false
         recognizer.configure(localeIdentifier: settings.localeID,
                              preferOnDevice: settings.preferOnDevice,
                              contextualStrings: dictionary.contextualTerms)
@@ -233,6 +266,25 @@ struct RecordView: View {
     private func clear() {
         recognizer.reset()
         aiText = nil
+        cloudApplied = false
+    }
+
+    /// 把剛才的錄音送 OpenAI 重新辨識，用結果換掉 Apple 的即時草稿。
+    private func runCloudTranscription() async {
+        guard let url = recognizer.lastRecordingURL, !isTranscribingCloud else { return }
+        isTranscribingCloud = true
+        defer { isTranscribingCloud = false }
+        let transcriber = CloudTranscriber(apiKey: settings.openAIKey, model: settings.transcriptionModel)
+        do {
+            let text = try await transcriber.transcribe(fileURL: url,
+                                                        vocabulary: dictionary.contextualTerms,
+                                                        localeHint: settings.localeID)
+            recognizer.replaceCurrentSessionText(with: text)
+            aiText = nil
+            cloudApplied = true
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     private func runAI() async {

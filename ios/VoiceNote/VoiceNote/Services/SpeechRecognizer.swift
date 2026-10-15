@@ -3,14 +3,29 @@ import AVFoundation
 import Speech
 import Combine
 
-/// 跨執行緒安全地持有目前的辨識請求（音訊 tap 在背景執行緒呼叫）。
-private final class RequestBox: @unchecked Sendable {
+/// 跨執行緒安全地持有目前的辨識請求與錄音檔（音訊 tap 在背景執行緒呼叫）。
+private final class AudioSinkBox: @unchecked Sendable {
     private let lock = NSLock()
-    private var current: SFSpeechAudioBufferRecognitionRequest?
+    private var currentRequest: SFSpeechAudioBufferRecognitionRequest?
+    private var currentFile: AVAudioFile?
 
     var request: SFSpeechAudioBufferRecognitionRequest? {
-        get { lock.lock(); defer { lock.unlock() }; return current }
-        set { lock.lock(); defer { lock.unlock() }; current = newValue }
+        get { lock.lock(); defer { lock.unlock() }; return currentRequest }
+        set { lock.lock(); defer { lock.unlock() }; currentRequest = newValue }
+    }
+
+    var file: AVAudioFile? {
+        get { lock.lock(); defer { lock.unlock() }; return currentFile }
+        set { lock.lock(); defer { lock.unlock() }; currentFile = newValue }
+    }
+
+    func consume(_ buffer: AVAudioPCMBuffer) {
+        lock.lock()
+        let request = currentRequest
+        let file = currentFile
+        lock.unlock()
+        request?.append(buffer)
+        try? file?.write(from: buffer)
     }
 }
 
@@ -26,7 +41,8 @@ enum RecognizerError: LocalizedError {
     }
 }
 
-/// Apple Speech 即時辨識。會自動在一段結束後重新開始，所以可以連續講很久。
+/// Apple Speech 即時辨識，同時把這段錄音存成 m4a，停止後可以送雲端重新辨識（中英夾雜）。
+/// 會自動在一段結束後重新開始，所以可以連續講很久。
 @MainActor
 final class SpeechRecognizer: ObservableObject {
     enum State: Equatable {
@@ -42,6 +58,8 @@ final class SpeechRecognizer: ObservableObject {
     /// 正在講、還會變動的那一段。
     @Published private(set) var partialText: String = ""
     @Published private(set) var isOnDevice = false
+    /// 最近一次錄音的檔案（停止後才完整）。
+    @Published private(set) var lastRecordingURL: URL?
 
     var liveText: String {
         if committedText.isEmpty { return partialText }
@@ -55,11 +73,13 @@ final class SpeechRecognizer: ObservableObject {
     }
 
     private let audioEngine = AVAudioEngine()
-    private let box = RequestBox()
+    private let sink = AudioSinkBox()
     private var recognizer: SFSpeechRecognizer?
     private var task: SFSpeechRecognitionTask?
     private var currentTaskID = UUID()
     private var consecutiveErrors = 0
+    /// 這次按下錄音之前已經有的文字；雲端重辨識只會換掉這次錄的部分。
+    private var sessionStartText = ""
 
     private var localeID = "zh-TW"
     private var preferOnDevice = true
@@ -106,14 +126,28 @@ final class SpeechRecognizer: ObservableObject {
 
         let inputNode = audioEngine.inputNode
         let format = inputNode.outputFormat(forBus: 0)
+
+        // 這段錄音存成 m4a，給雲端重辨識用。
+        discardRecording()
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("voicenote-\(UUID().uuidString).m4a")
+        let fileSettings: [String: Any] = [
+            AVFormatIDKey: kAudioFormatMPEG4AAC,
+            AVSampleRateKey: format.sampleRate,
+            AVNumberOfChannelsKey: format.channelCount,
+            AVEncoderAudioQualityKey: AVAudioQuality.medium.rawValue,
+        ]
+        sink.file = try? AVAudioFile(forWriting: url, settings: fileSettings, commonFormat: format.commonFormat, interleaved: format.isInterleaved)
+        lastRecordingURL = sink.file == nil ? nil : url
+
         inputNode.removeTap(onBus: 0)
-        let box = self.box
+        let sink = self.sink
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
-            box.request?.append(buffer)
+            sink.consume(buffer)
         }
         audioEngine.prepare()
         try audioEngine.start()
 
+        sessionStartText = committedText
         consecutiveErrors = 0
         state = .listening
         startRecognitionTask()
@@ -124,7 +158,8 @@ final class SpeechRecognizer: ObservableObject {
         state = .stopping
         audioEngine.stop()
         audioEngine.inputNode.removeTap(onBus: 0)
-        box.request?.endAudio()
+        sink.file = nil // 關檔，m4a 才會寫完整
+        sink.request?.endAudio()
 
         // 最後一段的最終結果通常很快就會到；萬一沒到就用目前的內容收尾。
         Task { [weak self] in
@@ -134,15 +169,32 @@ final class SpeechRecognizer: ObservableObject {
         }
     }
 
+    /// 用雲端辨識的結果換掉「這次錄音」辨識出來的文字；之前已經有的文字不動。
+    func replaceCurrentSessionText(with text: String) {
+        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return }
+        committedText = sessionStartText.isEmpty ? cleaned : sessionStartText + joiner + cleaned
+        partialText = ""
+    }
+
     /// 清掉已辨識的文字（儲存筆記之後呼叫）。
     func reset() {
         if isListening { stop() }
         committedText = ""
         partialText = ""
+        sessionStartText = ""
+        discardRecording()
         if case .error = state { state = .idle }
     }
 
     // MARK: - Private
+
+    private func discardRecording() {
+        if let url = lastRecordingURL {
+            try? FileManager.default.removeItem(at: url)
+        }
+        lastRecordingURL = nil
+    }
 
     private func startRecognitionTask() {
         guard let recognizer else { return }
@@ -154,7 +206,7 @@ final class SpeechRecognizer: ObservableObject {
         let onDevice = preferOnDevice && recognizer.supportsOnDeviceRecognition
         request.requiresOnDeviceRecognition = onDevice
         isOnDevice = onDevice
-        box.request = request
+        sink.request = request
 
         let taskID = UUID()
         currentTaskID = taskID
@@ -195,7 +247,8 @@ final class SpeechRecognizer: ObservableObject {
             if consecutiveErrors > 3 {
                 audioEngine.stop()
                 audioEngine.inputNode.removeTap(onBus: 0)
-                box.request = nil
+                sink.file = nil
+                sink.request = nil
                 task = nil
                 state = .error("語音辨識一直失敗，請確認網路或稍後再試。")
             } else {
@@ -219,7 +272,7 @@ final class SpeechRecognizer: ObservableObject {
         commitPartial()
         task?.cancel()
         task = nil
-        box.request = nil
+        sink.request = nil
         state = .idle
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }

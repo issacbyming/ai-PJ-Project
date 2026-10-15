@@ -7,10 +7,12 @@
 | AI 會主動潤飾、改寫你講的話，日記被改到忘記原本說什麼 | **原文永遠完整保留**。每則筆記同時存「原文」與「整理後」，隨時切換；整理只是另外產生的一份 |
 | 整理全靠雲端 LLM，不可控 | 預設「輕整理」在手機上用**規則**做：字典、「記下這三點」分段、「改 3 點」自我更正。不改寫任何句子。AI 整理是選用的，而且提示詞明確禁止潤飾 |
 | 鍵盤拿不到麥克風，要跳回 App | 直接做成筆記 App；存好之後一鍵複製／分享到任何地方 |
+| Apple 內建辨識一次只認一種語言，中英夾雜會錯 | 停止錄音後自動把整段錄音送 OpenAI 語音辨識（自動偵測語言），用結果換掉即時草稿 |
 
 ## 功能
 
 1. **即時辨識**：Apple Speech 框架，講的同時文字就出現。支援中文（台灣／香港／中國）、英文、日文。可選「裝置端辨識」（不上網、無時間限制）。
+   - **中英夾雜**：Apple 的辨識一次只能認一種語言。填入 OpenAI API key 後，App 會在錄音的同時把聲音存成 m4a，停止時送到 OpenAI 的 `/v1/audio/transcriptions`（預設 `gpt-4o-transcribe`，不指定語言讓它自動偵測），再用結果換掉即時草稿。字典的正確寫法會當成提示詞一起送。也可以關掉自動、改成手動按「中英重辨識」。
 2. **字典**：輸入正確寫法與常見錯字。正確寫法會送給語音辨識當提示（`contextualStrings`），常見錯字會在整理時自動換掉。
 3. **口說指令分段**：
    - 「記下這三點」「以下幾點」「總結三個重點」→ 自動變成 `1. 2. 3.`
@@ -32,6 +34,7 @@ ios/VoiceNote/
 │   ├── VoiceNoteApp.swift
 │   ├── Models/Note.swift
 │   ├── Services/SpeechRecognizer.swift   # Apple Speech 即時辨識，自動續段
+│   ├── Services/CloudTranscriber.swift   # OpenAI 語音辨識（中英夾雜，multipart 上傳）
 │   ├── Services/ClaudeStructurer.swift   # Claude Messages API（URLSession）
 │   ├── Storage/                          # 筆記、字典 JSON；設定；Keychain
 │   └── Views/                            # 錄音、筆記、字典、設定
@@ -52,7 +55,8 @@ ios/VoiceNote/
 1. 用 Xcode 開 `ios/VoiceNote/VoiceNote.xcodeproj`。
 2. 選 **VoiceNote** target → Signing & Capabilities → Team 選你的 Apple ID；把 Bundle Identifier 從 `com.example.voicenote` 改成你自己的（例如 `com.你的名字.voicenote`）。
 3. 把 iPhone 接上、選成執行目標，按 ▶︎。第一次會要求麥克風與語音辨識權限。
-4. （選用）設定 → Claude API 貼上 API key，錄音頁就會出現「AI 整理」。
+4. （選用）設定 → 「OpenAI 語音辨識」貼上 OpenAI API key：之後停止錄音會自動雲端重辨識，中英夾雜不再認錯。
+5. （選用）設定 → 「Claude 整理」貼上 Claude API key，錄音頁就會出現「AI 整理」。
 
 跑文字規則的單元測試：
 
@@ -78,6 +82,7 @@ xcodegen generate
 ## 已知限制／下一步
 
 - **還不是鍵盤**：iOS 自訂鍵盤拿不到麥克風（Typeless 也是跳回主 App 錄音再把字送回去）。要做鍵盤的話，下一步是加一個 Keyboard Extension，按鈕用 URL scheme 打開語記錄音，存完透過 App Group 把文字塞回鍵盤。
-- 雲端辨識每段大約一分鐘會自動收尾、再接著下一段，中間可能漏掉半秒；想長時間錄建議開「裝置端辨識」。
+- OpenAI 重辨識不是即時的：講的時候看到的是 Apple 的草稿，停止後幾秒才換成正確版本。單段錄音上限 25 MB（AAC 大約可錄一小時）。
+- Apple 雲端辨識每段大約一分鐘會自動收尾、再接著下一段，中間可能漏掉半秒；想長時間錄建議開「裝置端辨識」。
 - 自我更正目前靠「數字＋單位」與字形相似度，語意層面的更正（「很開心，不對，很難過」）交給 AI 整理。
 - 這份程式碼是在沒有 Xcode 的環境寫出來的，還沒有實機編譯過；第一次 build 若有小錯誤，照錯誤訊息修即可。

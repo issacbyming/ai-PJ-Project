@@ -3,28 +3,32 @@ import Security
 
 /// API key 存在 Keychain，不放 UserDefaults。
 enum KeychainHelper {
-    private static let service = "com.voicenote.claude-api-key"
-    private static let account = "default"
+    enum Account: String {
+        case claude = "default"
+        case openAI = "openai"
+    }
 
-    private static var baseQuery: [String: Any] {
+    private static let service = "com.voicenote.api-keys"
+
+    private static func baseQuery(_ account: Account) -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
+            kSecAttrAccount as String: account.rawValue,
         ]
     }
 
-    static func save(_ value: String) {
-        SecItemDelete(baseQuery as CFDictionary)
+    static func save(_ value: String, account: Account) {
+        SecItemDelete(baseQuery(account) as CFDictionary)
         guard !value.isEmpty else { return }
-        var query = baseQuery
+        var query = baseQuery(account)
         query[kSecValueData as String] = Data(value.utf8)
         query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         SecItemAdd(query as CFDictionary, nil)
     }
 
-    static func load() -> String? {
-        var query = baseQuery
+    static func load(account: Account) -> String? {
+        var query = baseQuery(account)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var item: CFTypeRef?
