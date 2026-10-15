@@ -369,16 +369,44 @@ def write_ass(cues: list[Cue], zh: list[str], path: Path, zh_font: str) -> None:
     path.write_text("".join(out), encoding="utf-8")
 
 
-def embed_into_mkv(video: Path, sub: Path, out: Path) -> None:
+def require_ffmpeg(flag: str) -> None:
     if not shutil.which("ffmpeg"):
-        sys.exit("--embed 需要 ffmpeg，請先安裝（macOS: brew install ffmpeg）")
+        sys.exit(f"{flag} 需要 ffmpeg，請先安裝（macOS: brew install ffmpeg）")
+
+
+def embed_into_mp4(video: Path, srt: Path, out: Path) -> None:
+    """把 .srt 以 mov_text 封進 mp4。不重新編碼，iPhone 的「檔案」App、Infuse、VLC 都能直接開啟並顯示字幕。"""
+    require_ffmpeg("--embed")
     cmd = [
-        "ffmpeg", "-y", "-loglevel", "error", "-i", str(video), "-i", str(sub),
-        "-map", "0", "-map", "1", "-c", "copy",
-        "-metadata:s:s:0", "language=chi", "-metadata:s:s:0", "title=中英雙語",
-        "-disposition:s:0", "default", str(out),
+        "ffmpeg", "-y", "-loglevel", "error", "-i", str(video), "-i", str(srt),
+        "-map", "0:v:0", "-map", "0:a:0", "-map", "1:0",
+        "-c:v", "copy", "-c:a", "copy", "-c:s", "mov_text",
+        "-metadata:s:s:0", "language=zho", "-metadata:s:s:0", "title=中英雙語",
+        "-disposition:s:0", "default", "-movflags", "+faststart", str(out),
     ]
     subprocess.run(cmd, check=True)
+
+
+def burn_into_mp4(video: Path, ass: Path, out: Path, codec: str) -> None:
+    """把字幕直接畫進影像（需要重新編碼，30 分鐘影片約數分鐘）。任何播放器、AirPlay、LINE 傳出去都看得到。"""
+    require_ffmpeg("--burn")
+    # ffmpeg 的 subtitles 濾鏡對 [ ] ' : 等字元很敏感，先複製成安全檔名再餵給它
+    tmp = ass.parent / "_dualsub_burn.ass"
+    shutil.copyfile(ass, tmp)
+    try:
+        cmd = [
+            "ffmpeg", "-y", "-loglevel", "error", "-i", str(video),
+            "-vf", "subtitles=_dualsub_burn.ass",
+            "-c:v", codec, "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart",
+        ]
+        if codec == "libx264":
+            cmd += ["-preset", "veryfast", "-crf", "20"]
+        elif codec == "h264_videotoolbox":
+            cmd += ["-b:v", "6M"]
+        cmd.append(str(out))
+        subprocess.run(cmd, check=True, cwd=ass.parent)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 # ---------------------------------------------------------------------------
@@ -394,7 +422,9 @@ def main() -> None:
     ap.add_argument("--format", default="srt", choices=["srt", "ass", "both"], help="字幕格式（ass 可設定中文大字、英文小字）")
     ap.add_argument("--whisper", action="store_true", help="強制用 faster-whisper 轉錄，不用 YouTube 字幕")
     ap.add_argument("--whisper-model", default="small", help="faster-whisper 模型大小（tiny/base/small/medium/large-v3）")
-    ap.add_argument("--embed", action="store_true", help="用 ffmpeg 把字幕封進 .mkv（不重新編碼）")
+    ap.add_argument("--embed", action="store_true", help="把字幕封進一個 .mp4（不重新編碼），丟到 iPhone 直接看")
+    ap.add_argument("--burn", action="store_true", help="把字幕燒進畫面（重新編碼，較慢），任何播放器都看得到")
+    ap.add_argument("--burn-codec", default="libx264", help="燒錄用的編碼器；Mac 可用 h264_videotoolbox 加速")
     ap.add_argument("--max-height", type=int, default=1080, help="下載的最高畫質（預設 1080）")
     ap.add_argument("--workers", type=int, default=4, help="同時送出的翻譯批次數")
     ap.add_argument("--zh-font", default="PingFang TC", help=".ass 中文字型名稱（Windows 可用 Microsoft JhengHei）")
@@ -450,22 +480,25 @@ def main() -> None:
         zh_cache.write_text(json.dumps(zh, ensure_ascii=False, indent=1), encoding="utf-8")
 
     # 4. 輸出
-    written: list[Path] = []
-    if args.format in ("srt", "both"):
-        p = Path(f"{base}.srt")
-        write_srt(cues, zh, p)
-        written.append(p)
-    if args.format in ("ass", "both"):
-        p = Path(f"{base}.ass")
-        write_ass(cues, zh, p, args.zh_font)
-        written.append(p)
-    for p in written:
-        log(f"字幕已寫入：{p}")
+    srt_path, ass_path = Path(f"{base}.srt"), Path(f"{base}.ass")
+    want_srt = args.format in ("srt", "both") or args.embed
+    want_ass = args.format in ("ass", "both") or args.burn
+    if want_srt:
+        write_srt(cues, zh, srt_path)
+        log(f"字幕已寫入：{srt_path}")
+    if want_ass:
+        write_ass(cues, zh, ass_path, args.zh_font)
+        log(f"字幕已寫入：{ass_path}")
 
     if args.embed:
-        mkv = Path(f"{base}.dualsub.mkv")
-        embed_into_mkv(video, written[-1], mkv)
-        log(f"已封裝：{mkv}")
+        out = Path(f"{base}.dualsub.mp4")
+        embed_into_mp4(video, srt_path, out)
+        log(f"已封裝（丟到手機就能看）：{out}")
+    if args.burn:
+        out = Path(f"{base}.burn.mp4")
+        log("燒錄字幕中，需要重新編碼，請稍等…")
+        burn_into_mp4(video, ass_path, out, args.burn_codec)
+        log(f"已燒錄：{out}")
 
     print(f"\n完成！用 IINA / mpv / VLC 打開：\n  {video}\n字幕會自動載入（與影片同名）。")
 

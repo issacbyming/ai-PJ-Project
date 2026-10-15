@@ -46,7 +46,9 @@ output/
 | 選項 | 說明 |
 |---|---|
 | `--format ass` | 輸出 .ass，中文大字、英文小字灰色。`--zh-font` 可換字型（Windows 建議 `"Microsoft JhengHei"`） |
-| `--embed` | 用 ffmpeg 把字幕封進一個 `.mkv`，方便丟到其他裝置看，不重新編碼 |
+| `--embed` | 把字幕封進一個 `.dualsub.mp4`（不重新編碼，秒出）。丟到 iPhone 用「檔案」App 或 Infuse 直接看 |
+| `--burn` | 把字幕燒進畫面成 `.burn.mp4`（重新編碼，30 分鐘影片約幾分鐘）。可存進「照片」、AirPlay、傳給別人 |
+| `--burn-codec h264_videotoolbox` | Mac 上用硬體加速燒錄，快很多 |
 | `--model claude-haiku-5-5` | 換便宜的模型。也可以在 `.env` 設 `DUALSUB_MODEL` |
 | `--lang zh-CN` | 翻成簡體 |
 | `--whisper` | 影片沒有英文字幕時用本機轉錄。需先 `pip install faster-whisper`，第一次會下載模型 |
@@ -58,6 +60,24 @@ output/
 
 ```bash
 python dualsub.py ~/Movies/talk.mp4 --whisper
+```
+
+## 在 iPhone 上看
+
+電腦跑完後，只要把一個檔案丟到手機：
+
+```bash
+python dualsub.py "https://www.youtube.com/watch?v=XXXX" --embed
+```
+
+1. 把 `output/影片標題 [id].dualsub.mp4` AirDrop 到 iPhone，或放進 iCloud Drive。
+2. 在「檔案」App 點開就能播，播放器右下角的對話框圖示可開關字幕。
+3. 想要更好的播放體驗，裝 [Infuse](https://apps.apple.com/app/id1136220934)（免費版即可），它會自動顯示字幕、記住進度，也能直接讀 iCloud Drive 或家裡電腦的共享資料夾。
+
+想存進「照片」App 或用 AirPlay 投到電視，改用 `--burn`，字幕直接畫在畫面上，任何播放器都看得到：
+
+```bash
+python dualsub.py "URL" --burn --burn-codec h264_videotoolbox
 ```
 
 ## 費用
