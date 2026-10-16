@@ -50,6 +50,8 @@ ios/VoiceNote/
 
 ## 怎麼跑起來
 
+完整的逐步安裝說明（含簽章、開發者模式、常見錯誤）在 [INSTALL.md](INSTALL.md)。
+
 需要 macOS + Xcode 16 以上，手機 iOS 17 以上（語音辨識在模擬器上不穩，建議用實機）。
 
 1. 用 Xcode 開 `ios/VoiceNote/VoiceNote.xcodeproj`。
