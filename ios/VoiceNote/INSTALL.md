@@ -3,6 +3,17 @@
 需要：一台 Mac、Xcode 16 以上（App Store 免費）、iPhone（iOS 17 以上）、傳輸線、一組 Apple ID。
 **不需要付費的 Apple Developer 帳號**，免費 Apple ID 就能裝到自己的手機，只是每 7 天要重新按一次執行（見最後一節）。
 
+## 懶人版：一行指令
+
+接上 iPhone、Xcode 登入過 Apple ID 之後，在終端機：
+
+```bash
+git clone https://github.com/issacbyming/ai-PJ-Project.git && cd ai-PJ-Project && git checkout claude/voicenote-ios
+cd ios/VoiceNote && ./install-to-iphone.sh
+```
+
+腳本會自己找裝置、找簽章、編譯、安裝。失敗會印出原因。下面是手動版。
+
 ## 1. 拿到程式碼
 
 打開「終端機」：
