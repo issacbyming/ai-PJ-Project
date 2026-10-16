@@ -8,8 +8,8 @@ enum JSONFileStore {
     }
 
     static func load<T: Decodable>(_ type: T.Type, from fileName: String) -> T? {
-        let url = url(for: fileName)
-        guard let data = try? Data(contentsOf: url) else { return nil }
+        let fileURL = url(for: fileName)
+        guard let data = try? Data(contentsOf: fileURL) else { return nil }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return try? decoder.decode(T.self, from: data)

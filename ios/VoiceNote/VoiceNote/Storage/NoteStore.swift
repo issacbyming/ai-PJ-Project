@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import SwiftUI // remove(atOffsets:) 定義在 SwiftUI
 import VoiceNoteCore
 
 @MainActor

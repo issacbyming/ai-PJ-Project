@@ -25,10 +25,10 @@ final class AppSettings: ObservableObject {
         preferOnDevice = defaults.object(forKey: "preferOnDevice") as? Bool ?? true
         removeFillers = defaults.bool(forKey: "removeFillers")
         defaultMode = ProcessingMode(rawValue: defaults.string(forKey: "defaultMode") ?? "") ?? .light
-        aiModel = defaults.string(forKey: "aiModel") ?? Self.models[0].id
+        aiModel = defaults.string(forKey: "aiModel") ?? AppSettings.models[0].id
         apiKey = KeychainHelper.load(account: .claude) ?? ""
         openAIKey = KeychainHelper.load(account: .openAI) ?? ""
-        transcriptionModel = defaults.string(forKey: "transcriptionModel") ?? Self.transcriptionModels[0].id
+        transcriptionModel = defaults.string(forKey: "transcriptionModel") ?? AppSettings.transcriptionModels[0].id
         cloudTranscribeAfterStop = defaults.object(forKey: "cloudTranscribeAfterStop") as? Bool ?? true
     }
 

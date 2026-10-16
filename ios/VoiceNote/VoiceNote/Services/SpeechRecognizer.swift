@@ -115,7 +115,7 @@ final class SpeechRecognizer: ObservableObject {
         if recognizer == nil {
             recognizer = SFSpeechRecognizer(locale: Locale(identifier: localeID))
         }
-        guard let recognizer, recognizer.isAvailable else {
+        guard let activeRecognizer = recognizer, activeRecognizer.isAvailable else {
             state = .error(RecognizerError.unavailable.localizedDescription)
             throw RecognizerError.unavailable
         }
@@ -140,9 +140,9 @@ final class SpeechRecognizer: ObservableObject {
         lastRecordingURL = sink.file == nil ? nil : url
 
         inputNode.removeTap(onBus: 0)
-        let sink = self.sink
+        let tapSink = self.sink
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
-            sink.consume(buffer)
+            tapSink.consume(buffer)
         }
         audioEngine.prepare()
         try audioEngine.start()

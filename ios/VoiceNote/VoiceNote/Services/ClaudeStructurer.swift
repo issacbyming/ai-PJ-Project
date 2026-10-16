@@ -61,36 +61,39 @@ struct ClaudeStructurer {
         let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { throw ClaudeError.missingAPIKey }
 
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "model": model,
             "max_tokens": 4096,
             "system": Self.systemPrompt(dictionary: dictionary, removeFillers: removeFillers),
             "messages": [["role": "user", "content": text]],
             "output_config": ["effort": "low"],
-            // 若安全分類器拒絕，伺服器端自動改用備援模型重跑同一個請求。
-            "fallbacks": "default",
         ]
+        // 若安全分類器拒絕，伺服器端自動改用備援模型重跑同一個請求。Haiku 沒有備援模型，不能帶。
+        let useFallback = !model.contains("haiku")
+        if useFallback { body["fallbacks"] = "default" }
 
         var request = URLRequest(url: Self.endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         request.setValue(key, forHTTPHeaderField: "x-api-key")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        request.setValue("server-side-fallback-2026-07-01", forHTTPHeaderField: "anthropic-beta")
+        if useFallback {
+            request.setValue("server-side-fallback-2026-07-01", forHTTPHeaderField: "anthropic-beta")
+        }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         request.timeoutInterval = 120
 
         let (data, response) = try await URLSession.shared.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        let parsed = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
 
         guard (200 ..< 300).contains(status) else {
-            let message = ((json?["error"] as? [String: Any])?["message"] as? String)
+            let message = ((parsed?["error"] as? [String: Any])?["message"] as? String)
                 ?? String(data: data, encoding: .utf8)
                 ?? "unknown"
             throw ClaudeError.http(status, message)
         }
-        guard let json else { throw ClaudeError.malformed }
+        guard let json = parsed else { throw ClaudeError.malformed }
 
         if json["stop_reason"] as? String == "refusal" {
             let details = json["stop_details"] as? [String: Any]

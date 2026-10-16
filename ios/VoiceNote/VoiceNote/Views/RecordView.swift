@@ -135,6 +135,8 @@ struct RecordView: View {
                 hintRow("下午 2 點…改 3 點", "自我更正，只留最後說的")
                 hintRow("不對，是星期四", "同上")
             }
+            .padding()
+            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
             if settings.hasOpenAIKey {
                 Text("已設定 OpenAI key：停止錄音後會自動重新辨識，中英夾雜也沒問題。")
                     .font(.footnote).foregroundStyle(.secondary)
@@ -142,8 +144,6 @@ struct RecordView: View {
                 Text("中英夾雜講話會認錯？到「設定」填 OpenAI API key，停止後會用雲端重新辨識。")
                     .font(.footnote).foregroundStyle(.secondary)
             }
-            .padding()
-            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
             if permissionGranted == false {
                 Label("沒有麥克風或語音辨識權限，請到 iOS「設定」開啟。", systemImage: "exclamationmark.triangle")
                     .foregroundStyle(.red)
