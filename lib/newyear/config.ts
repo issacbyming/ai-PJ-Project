@@ -2,7 +2,7 @@ import type { DayId, Kind, Slot } from './types'
 
 /** 活動的固定文案，要改標題或日期改這裡就好 */
 export const TRIP = {
-  title: '從煙火到三星',
+  title: '從新坡到三星',
   years: '2026 → 2027',
   range: '12/31（四）– 1/2（六）',
   newYear: '2027'
@@ -16,7 +16,7 @@ export const DAYS: Record<
     anchor: 'day1',
     nav: '第一天 12/31',
     date: '12/31（四）跨到 1/1',
-    heading: '第一天'
+    heading: '第一天・新坡好宅'
   },
   2: {
     anchor: 'day2',
