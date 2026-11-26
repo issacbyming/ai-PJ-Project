@@ -47,3 +47,20 @@ pnpm dev
 ```
 
 Your app template should now be running on [localhost:3000](http://localhost:3000/).
+
+## 跨年行程共編（`/newyear`）
+
+給朋友一起編輯跨年兩天行程的頁面：誰帶什麼、安排什麼節目，免登入、任何人都能改。
+
+- 上半是第一天（12/31），中間用 00:00 的煙火隔開，下半是宜蘭三星張宅（1/1–1/2）。
+- 每個時段可以加「吃的／玩的／節目」，點任何一項就能修改、換時段或刪除。
+- 底部的「口袋」放還沒排時段的點子，點一下再選要排到哪個時段。
+- 時段可以新增、改名、前後移動、刪除（刪除時裡面的東西會回到口袋）。
+
+標題、日期等固定文案在 `lib/newyear/config.ts`。
+
+### 資料存在哪
+
+設定 `NEXT_PUBLIC_SUPABASE_URL` 與 `NEXT_PUBLIC_SUPABASE_ANON_KEY` 後，資料存在 Supabase 並即時同步給所有人；
+資料表用 `supabase/migrations/20261126000000_newyear_planner.sql` 建立。
+兩個變數沒設定時，資料只存在各自瀏覽器的 localStorage（頁面上會顯示提醒）。
