@@ -2,12 +2,17 @@
 
 import * as React from 'react'
 import { getBackend } from './backend'
+import { REACTIONS } from './config'
+import { getClientId, newId } from './identity'
 import type {
   Backend,
+  Comment,
   DayId,
   Item,
   Kind,
   PlannerData,
+  Reaction,
+  ReactionKey,
   RemoteEvent,
   Slot
 } from './types'
@@ -19,15 +24,13 @@ export interface ItemDraft {
   slotId: string | null
 }
 
-function newId(): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID()
-  }
-  // 舊瀏覽器或非 https 環境的備援
-  return '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, c => {
-    const n = Number(c)
-    return (n ^ ((Math.random() * 16) >> (n / 4))).toString(16)
-  })
+/** 一張卡片的某個表情：幾個人按、我有沒有按 */
+export interface ReactionSummary {
+  key: ReactionKey
+  emoji: string
+  label: string
+  count: number
+  mine: boolean
 }
 
 const upsert = <T extends { id: string }>(list: T[], next: T) =>
@@ -35,20 +38,48 @@ const upsert = <T extends { id: string }>(list: T[], next: T) =>
     ? list.map(entry => (entry.id === next.id ? next : entry))
     : [...list, next]
 
+const sameReaction = (a: Reaction, b: Reaction) =>
+  a.itemId === b.itemId &&
+  a.reaction === b.reaction &&
+  a.clientId === b.clientId
+
 function applyEvent(data: PlannerData, event: RemoteEvent): PlannerData {
   switch (event.type) {
     case 'item-upsert':
       return { ...data, items: upsert(data.items, event.item) }
     case 'item-delete':
-      return { ...data, items: data.items.filter(i => i.id !== event.id) }
+      // 資料庫會把底下的留言與表情一起刪，畫面上也一起拿掉
+      return {
+        ...data,
+        items: data.items.filter(i => i.id !== event.id),
+        comments: data.comments.filter(c => c.itemId !== event.id),
+        reactions: data.reactions.filter(r => r.itemId !== event.id)
+      }
     case 'slot-upsert':
       return { ...data, slots: upsert(data.slots, event.slot) }
     case 'slot-delete':
       return {
+        ...data,
         slots: data.slots.filter(s => s.id !== event.id),
         items: data.items.map(i =>
           i.slotId === event.id ? { ...i, slotId: null } : i
         )
+      }
+    case 'comment-upsert':
+      return { ...data, comments: upsert(data.comments, event.comment) }
+    case 'comment-delete':
+      return {
+        ...data,
+        comments: data.comments.filter(c => c.id !== event.id)
+      }
+    case 'reaction-add':
+      return data.reactions.some(r => sameReaction(r, event.reaction))
+        ? data
+        : { ...data, reactions: [...data.reactions, event.reaction] }
+    case 'reaction-remove':
+      return {
+        ...data,
+        reactions: data.reactions.filter(r => !sameReaction(r, event.reaction))
       }
     default:
       return data
@@ -59,10 +90,16 @@ const bySort = (a: { sort: number }, b: { sort: number }) => a.sort - b.sort
 
 export function usePlanner() {
   const backendRef = React.useRef<Backend | null>(null)
-  const [data, setData] = React.useState<PlannerData>({ slots: [], items: [] })
+  const [data, setData] = React.useState<PlannerData>({
+    slots: [],
+    items: [],
+    comments: [],
+    reactions: []
+  })
   const [ready, setReady] = React.useState(false)
   const [mode, setMode] = React.useState<'cloud' | 'local'>('cloud')
   const [error, setError] = React.useState<string | null>(null)
+  const [clientId, setClientId] = React.useState('')
 
   const reload = React.useCallback(async () => {
     const backend = backendRef.current
@@ -79,6 +116,7 @@ export function usePlanner() {
     const backend = getBackend()
     backendRef.current = backend
     setMode(backend.mode)
+    setClientId(getClientId())
     reload()
     const unsubscribe = backend.subscribe(event => {
       if (event.type === 'reload') reload()
@@ -184,6 +222,81 @@ export function usePlanner() {
     [commit]
   )
 
+  /** 按一下加上表情，再按一下收回 */
+  const toggleReaction = React.useCallback(
+    (itemId: string, key: ReactionKey) => {
+      if (!clientId) return
+      const reaction: Reaction = { itemId, reaction: key, clientId }
+      const already = data.reactions.some(r => sameReaction(r, reaction))
+      if (already) {
+        commit({ type: 'reaction-remove', reaction }, b =>
+          b.removeReaction(reaction)
+        )
+      } else {
+        commit({ type: 'reaction-add', reaction }, b => b.addReaction(reaction))
+      }
+    },
+    [clientId, commit, data.reactions]
+  )
+
+  const addComment = React.useCallback(
+    (itemId: string, who: string, body: string) => {
+      if (!clientId) return
+      const comment: Comment = {
+        id: newId(),
+        itemId,
+        who,
+        body,
+        clientId,
+        createdAt: new Date().toISOString()
+      }
+      commit({ type: 'comment-upsert', comment }, b => b.addComment(comment))
+    },
+    [clientId, commit]
+  )
+
+  const removeComment = React.useCallback(
+    (id: string) => {
+      commit({ type: 'comment-delete', id }, b => b.removeComment(id))
+    },
+    [commit]
+  )
+
+  const commentsByItem = React.useMemo(() => {
+    const map = new Map<string, Comment[]>()
+    const sorted = [...data.comments].sort((a, b) =>
+      a.createdAt.localeCompare(b.createdAt)
+    )
+    for (const comment of sorted) {
+      map.set(comment.itemId, [...(map.get(comment.itemId) ?? []), comment])
+    }
+    return map
+  }, [data.comments])
+
+  /** 每張卡片五種表情各自的人數；沒人按的也列出來，方便畫按鈕 */
+  const reactionsByItem = React.useMemo(() => {
+    const map = new Map<string, ReactionSummary[]>()
+    for (const r of data.reactions) {
+      const list =
+        map.get(r.itemId) ??
+        REACTIONS.map(entry => ({ ...entry, count: 0, mine: false }))
+      const target = list.find(entry => entry.key === r.reaction)
+      if (target) {
+        target.count += 1
+        if (r.clientId === clientId) target.mine = true
+      }
+      map.set(r.itemId, list)
+    }
+    return map
+  }, [data.reactions, clientId])
+
+  const reactionsFor = React.useCallback(
+    (itemId: string): ReactionSummary[] =>
+      reactionsByItem.get(itemId) ??
+      REACTIONS.map(entry => ({ ...entry, count: 0, mine: false })),
+    [reactionsByItem]
+  )
+
   const slotsByDay = React.useMemo(() => {
     const sorted = [...data.slots].sort(bySort)
     return {
@@ -216,7 +329,13 @@ export function usePlanner() {
     addSlot,
     renameSlot,
     moveSlot,
-    removeSlot
+    removeSlot,
+    clientId,
+    toggleReaction,
+    reactionsFor,
+    commentsFor: (itemId: string) => commentsByItem.get(itemId) ?? [],
+    addComment,
+    removeComment
   }
 }
 

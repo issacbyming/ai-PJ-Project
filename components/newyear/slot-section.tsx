@@ -5,12 +5,14 @@ import { cn } from '@/lib/utils'
 import { KINDS, LIMITS } from '@/lib/newyear/config'
 import type { DayId, Item, Slot } from '@/lib/newyear/types'
 import type { Planner } from '@/lib/newyear/use-planner'
+import { ItemDetail, ReactionLine } from './item-detail'
 import { ItemForm, useRevealOnMount } from './item-form'
 import { FOCUS, KIND_TAG, TONE, type Tone } from './styles'
 
 /** 整頁同一時間只會打開一個表單 */
 export type OpenPanel =
   | { type: 'add'; slotId: string }
+  | { type: 'detail'; itemId: string }
   | { type: 'edit'; itemId: string }
   | { type: 'slot'; slotId: string }
   | { type: 'new-slot'; day: DayId }
@@ -132,11 +134,19 @@ export function SlotSection({
                   setOpen(null)
                 }}
               />
+            ) : open?.type === 'detail' && open.itemId === item.id ? (
+              <ItemDetail
+                key={item.id}
+                item={item}
+                planner={planner}
+                onEdit={() => setOpen({ type: 'edit', itemId: item.id })}
+                onClose={() => setOpen(null)}
+              />
             ) : (
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setOpen({ type: 'edit', itemId: item.id })}
+                onClick={() => setOpen({ type: 'detail', itemId: item.id })}
                 className={cn(
                   'flex min-h-[52px] items-center gap-2.5 rounded-xl px-3 py-2 text-left',
                   t.row,
@@ -151,8 +161,13 @@ export function SlotSection({
                 >
                   {KINDS[item.kind].label}
                 </span>
-                <span className="min-w-0 flex-1 break-words text-[15px]">
-                  {item.title}
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="break-words text-[15px]">{item.title}</span>
+                  <ReactionLine
+                    reactions={planner.reactionsFor(item.id)}
+                    commentCount={planner.commentsFor(item.id).length}
+                    className={cn('mt-0.5', t.sub)}
+                  />
                 </span>
                 {item.who ? (
                   <span className={cn('max-w-[40%] shrink-0 truncate text-[13px]', t.sub)}>

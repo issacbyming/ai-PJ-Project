@@ -44,7 +44,7 @@ export function Planner() {
             {TRIP.title}
           </h1>
           <p className="mt-2 text-sm leading-[22px] text-[#B9BEE6]">
-            {TRIP.range} · 點任何一項就能改，不用登入
+            {TRIP.range} · 點任何一項就能按讚、留言或修改，不用登入
           </p>
 
           {planner.ready && planner.mode === 'local' && (

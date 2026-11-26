@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { KIND_ORDER, KINDS, LIMITS } from '@/lib/newyear/config'
 import type { Item, Kind } from '@/lib/newyear/types'
 import type { Planner } from '@/lib/newyear/use-planner'
+import { ItemDetail, ReactionLine } from './item-detail'
 import { ItemForm } from './item-form'
 import { FOCUS, KIND_CHIP, KIND_TAG } from './styles'
 
@@ -18,15 +19,18 @@ interface PocketProps {
 /** 畫面底部的「口袋」：還沒排時段的點子，兩天共用 */
 export function Pocket({ items, planner, expanded, setExpanded }: PocketProps) {
   const [editingId, setEditingId] = React.useState<string | null>(null)
+  const [detailId, setDetailId] = React.useState<string | null>(null)
   const [title, setTitle] = React.useState('')
   const [kind, setKind] = React.useState<Kind>('food')
   const panelId = React.useId()
   const inputId = React.useId()
   const editing = items.find(item => item.id === editingId) ?? null
+  const detail = items.find(item => item.id === detailId) ?? null
 
   const close = () => {
     setExpanded(false)
     setEditingId(null)
+    setDetailId(null)
   }
 
   React.useEffect(() => {
@@ -35,6 +39,7 @@ export function Pocket({ items, planner, expanded, setExpanded }: PocketProps) {
       if (event.key === 'Escape') {
         setExpanded(false)
         setEditingId(null)
+        setDetailId(null)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -119,14 +124,26 @@ export function Pocket({ items, planner, expanded, setExpanded }: PocketProps) {
                   setEditingId(null)
                 }}
               />
+            ) : detail ? (
+              <ItemDetail
+                key={detail.id}
+                item={detail}
+                planner={planner}
+                editLabel="編輯／排時段"
+                onEdit={() => {
+                  setDetailId(null)
+                  setEditingId(detail.id)
+                }}
+                onClose={() => setDetailId(null)}
+              />
             ) : items.length > 0 ? (
               <ul className="flex flex-wrap gap-2">
                 {items.map(item => (
                   <li key={item.id} className="max-w-full">
                     <button
                       type="button"
-                      aria-label={`${KINDS[item.kind].label}：${item.title}，點一下排時段`}
-                      onClick={() => setEditingId(item.id)}
+                      aria-label={`${KINDS[item.kind].label}：${item.title}，點一下按讚、留言或排時段`}
+                      onClick={() => setDetailId(item.id)}
                       className={cn(
                         'flex min-h-[44px] max-w-full items-center gap-1.5 rounded-[22px] py-1 pl-1.5 pr-3 text-left text-[#1F1A17]',
                         KIND_CHIP[item.kind],
@@ -149,6 +166,11 @@ export function Pocket({ items, planner, expanded, setExpanded }: PocketProps) {
                           {item.who}
                         </span>
                       )}
+                      <ReactionLine
+                        reactions={planner.reactionsFor(item.id)}
+                        commentCount={planner.commentsFor(item.id).length}
+                        className="shrink-0 gap-x-1.5 text-xs text-[#4F4741]"
+                      />
                     </button>
                   </li>
                 ))}
@@ -159,7 +181,7 @@ export function Pocket({ items, planner, expanded, setExpanded }: PocketProps) {
               </p>
             )}
 
-            {!editing && (
+            {!editing && !detail && (
               <form onSubmit={addToPocket} className="flex flex-col gap-2">
                 <div role="group" aria-label="類型" className="flex gap-1.5">
                   {KIND_ORDER.map(option => {

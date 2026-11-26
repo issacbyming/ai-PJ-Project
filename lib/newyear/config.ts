@@ -1,4 +1,4 @@
-import type { DayId, Kind, Slot } from './types'
+import type { DayId, Kind, ReactionKey, Slot } from './types'
 
 /** 活動的固定文案，要改標題或日期改這裡就好 */
 export const TRIP = {
@@ -34,7 +34,16 @@ export const KINDS: Record<Kind, { label: string; short: string }> = {
 
 export const KIND_ORDER: Kind[] = ['food', 'play', 'show']
 
-export const LIMITS = { title: 60, who: 20, slotName: 20 }
+export const LIMITS = { title: 60, who: 20, slotName: 20, comment: 200 }
+
+/** 卡片上的表情，依這個順序排；label 是讀螢幕軟體與滑鼠停留時看到的說明 */
+export const REACTIONS: { key: ReactionKey; emoji: string; label: string }[] = [
+  { key: 'like', emoji: '👍', label: '支持' },
+  { key: 'love', emoji: '❤️', label: '喜歡' },
+  { key: 'yum', emoji: '🤤', label: '好想要' },
+  { key: 'haha', emoji: '😂', label: '好好笑' },
+  { key: 'hmm', emoji: '🤔', label: '再想想' }
+]
 
 /** 還沒接雲端資料庫時用的預設時段（雲端版由 migration 建立同一組） */
 export const DEFAULT_SLOTS: Slot[] = [

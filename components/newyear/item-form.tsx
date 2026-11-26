@@ -183,8 +183,8 @@ export function ItemForm({
 }
 
 /** 表單打開時捲到看得到的位置，避免被底部的口袋擋住 */
-export function useRevealOnMount() {
-  const ref = React.useRef<HTMLFormElement>(null)
+export function useRevealOnMount<T extends HTMLElement = HTMLFormElement>() {
+  const ref = React.useRef<T>(null)
   React.useEffect(() => {
     ref.current?.scrollIntoView({ block: 'nearest' })
   }, [])
