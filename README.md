@@ -57,6 +57,8 @@ Your app template should now be running on [localhost:3000](http://localhost:300
 - 底部的「口袋」放還沒排時段的點子，點一下再選要排到哪個時段。
 - 時段可以新增、改名、前後移動、刪除（刪除時裡面的東西會回到口袋）。
 
+網站根目錄 `/` 會直接轉到 `/newyear`（設定在 `next.config.js` 的 `redirects`）。
+
 標題、日期等固定文案在 `lib/newyear/config.ts`。
 
 ### 資料存在哪
