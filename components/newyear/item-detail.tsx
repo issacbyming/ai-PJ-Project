@@ -68,6 +68,8 @@ export function ItemDetail({
       ) {
         el.scrollIntoView({ block: 'start' })
       }
+      // 游標移進面板，用鍵盤的人可以直接操作、按 Esc 收起
+      el.focus({ preventScroll: true })
     })
     return () => window.cancelAnimationFrame(frame)
   }, [])
@@ -125,13 +127,16 @@ export function ItemDetail({
   return (
     <div
       ref={ref}
+      tabIndex={-1}
+      aria-label={`${item.title}：表情與留言`}
       onKeyDown={event => {
         if (event.key === 'Escape') {
+          // 口袋裡按 Esc 只收這個面板，不收整個口袋；留言打到一半不收，免得字不見
           event.stopPropagation()
-          close()
+          if (!body.trim()) close()
         }
       }}
-      className="flex scroll-mb-24 scroll-mt-4 flex-col gap-3 rounded-[14px] border-2 border-[#1F7A4D] bg-white p-3.5 text-[#12301F]"
+      className="flex scroll-mb-24 scroll-mt-4 flex-col gap-3 rounded-[14px] border-2 border-[#1F7A4D] bg-white p-3.5 text-[#12301F] outline-none"
     >
       <div className="flex items-start gap-2.5">
         <span
@@ -162,8 +167,17 @@ export function ItemDetail({
             />
           ))}
         </div>
-        <p aria-hidden="true" className="text-[13px] leading-5 text-[#4A6353]">
-          {REACTIONS.map(entry => `${entry.emoji}${entry.label}`).join('　')}
+        <p
+          aria-hidden="true"
+          className="flex flex-wrap gap-x-3 text-[13px] leading-5 text-[#4A6353]"
+        >
+          {/* 每組「表情＋說明」不拆開，要換行就整組換 */}
+          {REACTIONS.map(entry => (
+            <span key={entry.key} className="whitespace-nowrap">
+              {entry.emoji}
+              {entry.label}
+            </span>
+          ))}
         </p>
       </div>
 
@@ -361,7 +375,7 @@ function ReactionButton({
   )
 }
 
-/** 卡片上的一行小字：人數最多的兩種表情與留言數，例如「👍 3 ❤️ 1 💬 2」 */
+/** 卡片上的一行小字：👍 人數、另一種最多的表情與留言數，例如「👍 3 ❤️ 1 💬 2」 */
 export function ReactionLine({
   reactions,
   commentCount,
@@ -371,11 +385,13 @@ export function ReactionLine({
   commentCount: number
   className?: string
 }) {
-  // 同樣人數時照 config 的順序（👍 優先）
-  const top = reactions
-    .filter(reaction => reaction.count > 0)
+  // 有人按 👍（支持）就固定排第一個，再加 1 種人數最多的表情；同樣人數時照 config 的順序
+  const used = reactions.filter(reaction => reaction.count > 0)
+  const like = used.find(reaction => reaction.key === 'like')
+  const others = used
+    .filter(reaction => reaction.key !== 'like')
     .sort((a, b) => b.count - a.count)
-    .slice(0, 2)
+  const top = like ? [like, ...others.slice(0, 1)] : others.slice(0, 2)
   if (top.length === 0 && commentCount === 0) return null
   const spoken = [
     ...top.map(reaction => `${reaction.label} ${reaction.count}`),
