@@ -128,7 +128,7 @@ export function SlotSection({
                   planner.updateItem({ ...item, ...draft })
                   setOpen(null)
                 }}
-                onCancel={() => setOpen(null)}
+                onCancel={() => setOpen({ type: 'detail', itemId: item.id })}
                 onDelete={() => {
                   planner.removeItem(item.id)
                   setOpen(null)
@@ -146,6 +146,7 @@ export function SlotSection({
               <button
                 key={item.id}
                 type="button"
+                data-item-card={item.id}
                 onClick={() => setOpen({ type: 'detail', itemId: item.id })}
                 className={cn(
                   'flex min-h-[52px] items-center gap-2.5 rounded-xl px-3 py-2 text-left',
@@ -166,7 +167,7 @@ export function SlotSection({
                   <ReactionLine
                     reactions={planner.reactionsFor(item.id)}
                     commentCount={planner.commentsFor(item.id).length}
-                    className={cn('mt-0.5', t.sub)}
+                    className={cn('mt-0.5 text-[15px]', t.sub)}
                   />
                 </span>
                 {item.who ? (

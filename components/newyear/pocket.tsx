@@ -105,6 +105,7 @@ export function Pocket({ items, planner, expanded, setExpanded }: PocketProps) {
         {expanded && (
           <div
             id={panelId}
+            data-scroll-box
             className="flex max-h-[70vh] flex-col gap-3.5 overflow-y-auto px-5 pb-5"
           >
             {editing ? (
@@ -118,7 +119,11 @@ export function Pocket({ items, planner, expanded, setExpanded }: PocketProps) {
                   planner.updateItem({ ...editing, ...draft })
                   setEditingId(null)
                 }}
-                onCancel={() => setEditingId(null)}
+                onCancel={() => {
+                  // 取消編輯就回到剛才的面板
+                  setEditingId(null)
+                  setDetailId(editing.id)
+                }}
                 onDelete={() => {
                   planner.removeItem(editing.id)
                   setEditingId(null)
@@ -142,7 +147,7 @@ export function Pocket({ items, planner, expanded, setExpanded }: PocketProps) {
                   <li key={item.id} className="max-w-full">
                     <button
                       type="button"
-                      aria-label={`${KINDS[item.kind].label}：${item.title}，點一下按讚、留言或排時段`}
+                      data-item-card={item.id}
                       onClick={() => setDetailId(item.id)}
                       className={cn(
                         'flex min-h-[44px] max-w-full items-center gap-1.5 rounded-[22px] py-1 pl-1.5 pr-3 text-left text-[#1F1A17]',
@@ -156,21 +161,25 @@ export function Pocket({ items, planner, expanded, setExpanded }: PocketProps) {
                           KIND_TAG[item.kind]
                         )}
                       >
-                        {KINDS[item.kind].short}
+                        <span aria-hidden="true">{KINDS[item.kind].short}</span>
+                        <span className="sr-only">{KINDS[item.kind].label}：</span>
                       </span>
-                      <span className="min-w-0 break-words text-sm">
-                        {item.title}
-                      </span>
-                      {item.who && (
-                        <span className="shrink-0 text-xs text-[#4F4741]">
-                          {item.who}
+                      <span className="flex min-w-0 flex-col">
+                        <span className="break-words text-sm">
+                          {item.title}
+                          {item.who && (
+                            <span className="ml-1.5 text-xs text-[#4F4741]">
+                              {item.who}
+                            </span>
+                          )}
                         </span>
-                      )}
-                      <ReactionLine
-                        reactions={planner.reactionsFor(item.id)}
-                        commentCount={planner.commentsFor(item.id).length}
-                        className="shrink-0 gap-x-1.5 text-xs text-[#4F4741]"
-                      />
+                        {/* 人數放在標題下一行，避免把標題擠窄 */}
+                        <ReactionLine
+                          reactions={planner.reactionsFor(item.id)}
+                          commentCount={planner.commentsFor(item.id).length}
+                          className="gap-x-2 text-[13px] text-[#4F4741]"
+                        />
+                      </span>
                     </button>
                   </li>
                 ))}

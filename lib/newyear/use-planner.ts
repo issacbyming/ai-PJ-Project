@@ -262,6 +262,14 @@ export function usePlanner() {
     [commit]
   )
 
+  /** 「復原」剛刪掉的留言：原封不動放回去 */
+  const restoreComment = React.useCallback(
+    (comment: Comment) => {
+      commit({ type: 'comment-upsert', comment }, b => b.addComment(comment))
+    },
+    [commit]
+  )
+
   const commentsByItem = React.useMemo(() => {
     const map = new Map<string, Comment[]>()
     const sorted = [...data.comments].sort((a, b) =>
@@ -335,7 +343,8 @@ export function usePlanner() {
     reactionsFor,
     commentsFor: (itemId: string) => commentsByItem.get(itemId) ?? [],
     addComment,
-    removeComment
+    removeComment,
+    restoreComment
   }
 }
 
