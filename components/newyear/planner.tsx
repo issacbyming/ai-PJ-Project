@@ -28,7 +28,8 @@ export function Planner() {
   }
 
   return (
-    <div className="min-h-screen bg-[#EEF4EC] pb-24">
+    // 面板打開、收起時由程式決定捲到哪，關掉瀏覽器自動「固定畫面位置」的調整，免得兩邊互相打架
+    <div className="min-h-screen bg-[#EEF4EC] pb-24" style={{ overflowAnchor: 'none' }}>
       <div className="bg-[#0C1030] pt-7 text-[#F4F2FF]">
         <header className={cn(COLUMN, 'flex flex-col')}>
           <div className="flex h-11 items-center justify-between">

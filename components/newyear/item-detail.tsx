@@ -54,35 +54,42 @@ export function ItemDetail({
 
   // 打開時，面板頂端不在眼前（例如從另一張卡片切過來）就捲到頂端
   React.useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      const el = ref.current
-      if (!el) return
-      const box = el.closest<HTMLElement>('[data-scroll-box]')
-      const bounds = box
-        ? box.getBoundingClientRect()
-        : { top: 0, bottom: window.innerHeight }
-      const top = el.getBoundingClientRect().top
-      if (
-        top < bounds.top ||
-        top > bounds.top + (bounds.bottom - bounds.top) * 0.6
-      ) {
-        el.scrollIntoView({ block: 'start' })
-      }
-      // 游標移進面板，用鍵盤的人可以直接操作、按 Esc 收起
-      el.focus({ preventScroll: true })
+    let second = 0
+    // 等兩個畫格：上一個面板收起、版面排好之後再量位置
+    const first = window.requestAnimationFrame(() => {
+      second = window.requestAnimationFrame(() => {
+        const el = ref.current
+        if (!el) return
+        // 游標移進面板（不捲動），用鍵盤的人可以直接操作、按 Esc 收起
+        el.focus({ preventScroll: true })
+        const box = el.closest<HTMLElement>('[data-scroll-box]')
+        const bounds = box
+          ? box.getBoundingClientRect()
+          : { top: 0, bottom: window.innerHeight }
+        const top = el.getBoundingClientRect().top
+        if (
+          top < bounds.top ||
+          top > bounds.top + (bounds.bottom - bounds.top) * 0.6
+        ) {
+          el.scrollIntoView({ block: 'start' })
+        }
+      })
     })
-    return () => window.cancelAnimationFrame(frame)
+    return () => {
+      window.cancelAnimationFrame(first)
+      window.cancelAnimationFrame(second)
+    }
   }, [])
 
   React.useEffect(() => () => window.clearTimeout(undoTimer.current), [])
 
   const close = () => {
     onClose()
-    // 收起後把游標放回這張卡片，不要跳回頁首
+    // 收起後把游標放回這張卡片，不要跳回頁首；放回時畫面不跟著捲
     window.setTimeout(() => {
       document
         .querySelector<HTMLElement>(`[data-item-card="${item.id}"]`)
-        ?.focus()
+        ?.focus({ preventScroll: true })
     }, 0)
   }
 
