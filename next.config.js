@@ -4,6 +4,10 @@ module.exports = {
   experimental: {
     serverActions: true,
   },
+  // 根目錄直接進跨年行程頁（原本的聊天機器人首頁仍保留在 app/(chat)）
+  async redirects() {
+    return [{ source: '/', destination: '/newyear', permanent: false }]
+  },
   async headers() {
     return [
     {
