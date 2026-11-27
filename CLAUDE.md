@@ -14,7 +14,9 @@
 - 免費方案約 7 天沒人用會暫停：到 Vercel → Storage → ai-service-live-feedback 按 Resume，資料不會不見。
 
 ## 怎麼部署
-- Vercel 的正式分支是 main。用指令部署：在 main 的資料夾 `vercel link --yes --project xinpo-sanxing-2027 --scope issacbymings-projects`，再 `vercel deploy --prod --yes`。部署後 `curl` 正式網址確認回 200、有這次改的內容。
+- Vercel 專案有連 GitHub：推到 main（或合併 PR 進 main）就會自動重建正式網址；推別的分支只會建一份預覽，不影響正式網址。併進 main 前照否決清單先問 Rax。
+- 要手動部署時：在 main 的資料夾 `vercel link --yes --project xinpo-sanxing-2027 --scope issacbymings-projects`，再 `vercel deploy --prod --yes`。
+- 部署後 `curl` 正式網址確認回 200、有這次改的內容。
 - 改了 `NEXT_PUBLIC_` 開頭的環境變數要重新部署才生效。
 - 改動後跑：`pnpm type-check`、`pnpm lint`、`pnpm build`。
 
