@@ -24,15 +24,36 @@ interface ItemDetailProps {
   editLabel?: string
   onEdit: () => void
   onClose: () => void
+  onDelete: () => void
 }
 
-/** 點開一張卡片：按表情、看留言、寫留言，或進去編輯 */
+/** 刪掉一項之前先問一次；上面的留言和表情會一起刪掉，也一起說 */
+export function confirmRemoveItem(item: Item, planner: Planner): boolean {
+  const comments = planner.commentsFor(item.id).length
+  const reactions = planner
+    .reactionsFor(item.id)
+    .reduce((sum, reaction) => sum + reaction.count, 0)
+  const extra = [
+    comments > 0 ? `${comments} 則留言` : '',
+    reactions > 0 ? `${reactions} 個表情` : ''
+  ]
+    .filter(Boolean)
+    .join('和 ')
+  return window.confirm(
+    extra
+      ? `刪除「${item.title}」？這一項的 ${extra}也會一起刪掉。`
+      : `刪除「${item.title}」？`
+  )
+}
+
+/** 點開一張卡片：按表情、看留言、寫留言，或進去編輯、刪除 */
 export function ItemDetail({
   item,
   planner,
   editLabel = '編輯',
   onEdit,
-  onClose
+  onClose,
+  onDelete
 }: ItemDetailProps) {
   const reactions = planner.reactionsFor(item.id)
   const comments = planner.commentsFor(item.id)
@@ -154,14 +175,14 @@ export function ItemDetail({
         >
           {KINDS[item.kind].label}
         </span>
-        <p className="min-w-0 flex-1 break-words text-base font-bold leading-6">
-          {item.title}
-        </p>
-        {item.who && (
-          <span className="mt-0.5 max-w-[35%] shrink-0 truncate text-[13px] text-[#4A6353]">
-            {item.who}
-          </span>
-        )}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <p className="break-words text-base font-bold leading-6">
+            {item.title}
+          </p>
+          {item.who && (
+            <Proposer who={item.who} className="text-sm text-[#4A6353]" />
+          )}
+        </div>
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -326,27 +347,40 @@ export function ItemDetail({
         </form>
       </div>
 
-      <div className="flex items-center gap-2 border-t border-[#D5E0D3] pt-2">
+      {/* 刪除靠左、收起與編輯靠右；太窄時右邊那組整組換到下一行，字不斷開 */}
+      <div className="flex flex-wrap items-center gap-2 border-t border-[#D5E0D3] pt-2">
         <button
           type="button"
-          onClick={close}
+          onClick={onDelete}
           className={cn(
-            'h-11 rounded-[10px] px-3 text-[15px] text-[#4A6353]',
+            '-ml-1 h-11 whitespace-nowrap rounded-[10px] px-2 text-[15px] text-[#A32018]',
             FOCUS
           )}
         >
-          收起
+          刪除這項
         </button>
-        <button
-          type="button"
-          onClick={onEdit}
-          className={cn(
-            'ml-auto h-11 rounded-[10px] border border-[#1F7A4D] px-4 text-[15px] font-bold text-[#17603C]',
-            FOCUS
-          )}
-        >
-          {editLabel}
-        </button>
+        <div className="ml-auto flex gap-2">
+          <button
+            type="button"
+            onClick={close}
+            className={cn(
+              'h-11 whitespace-nowrap rounded-[10px] px-3 text-[15px] text-[#4A6353]',
+              FOCUS
+            )}
+          >
+            收起
+          </button>
+          <button
+            type="button"
+            onClick={onEdit}
+            className={cn(
+              'h-11 whitespace-nowrap rounded-[10px] border border-[#1F7A4D] px-4 text-[15px] font-bold text-[#17603C]',
+              FOCUS
+            )}
+          >
+            {editLabel}
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -382,12 +416,30 @@ function ReactionButton({
   )
 }
 
-/** 卡片上的一行小字：👍 人數、另一種最多的表情與留言數，例如「👍 3 ❤️ 1 💬 2」 */
-export function ReactionLine({
+/** 「○○ 提議」：名字太長時只截名字，「提議」兩個字永遠留著 */
+export function Proposer({
+  who,
+  className
+}: {
+  who: string
+  className?: string
+}) {
+  return (
+    <span className={cn('flex min-w-0 max-w-full', className)}>
+      <span className="min-w-0 truncate">{who}</span>
+      <span className="shrink-0">&nbsp;提議</span>
+    </span>
+  )
+}
+
+/** 卡片標題下的一行小字：提議者、👍 人數、另一種最多的表情與留言數，例如「小明 提議 👍 3 ❤️ 1 💬 2」 */
+export function CardMeta({
+  who,
   reactions,
   commentCount,
   className
 }: {
+  who: string
   reactions: ReactionSummary[]
   commentCount: number
   className?: string
@@ -399,14 +451,15 @@ export function ReactionLine({
     .filter(reaction => reaction.key !== 'like')
     .sort((a, b) => b.count - a.count)
   const top = like ? [like, ...others.slice(0, 1)] : others.slice(0, 2)
-  if (top.length === 0 && commentCount === 0) return null
+  if (!who && top.length === 0 && commentCount === 0) return null
   const spoken = [
     ...top.map(reaction => `${reaction.label} ${reaction.count}`),
     ...(commentCount > 0 ? [`留言 ${commentCount}`] : [])
   ].join('、')
   return (
     <span className={cn('flex flex-wrap gap-x-3', className)}>
-      <span className="sr-only">{spoken}</span>
+      {who && <Proposer who={who} />}
+      {spoken && <span className="sr-only">{spoken}</span>}
       {top.map(reaction => (
         <span key={reaction.key} aria-hidden="true">
           {reaction.emoji} {reaction.count}

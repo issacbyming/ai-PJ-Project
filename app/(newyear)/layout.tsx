@@ -11,7 +11,7 @@ const fontDisplay = Unbounded({
 
 export const metadata: Metadata = {
   title: `${TRIP.title}｜跨年行程`,
-  description: `${TRIP.range} 跨年兩天，大家一起填要帶什麼、玩什麼。`,
+  description: `${TRIP.range} 跨年兩天，大家一起排要吃什麼、玩什麼。`,
   themeColor: '#0C1030',
   viewport: { width: 'device-width', initialScale: 1, viewportFit: 'cover' },
   // 只給拿到連結的朋友用，不讓搜尋引擎收錄

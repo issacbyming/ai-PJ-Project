@@ -14,7 +14,6 @@ export const TONE: Record<
     dashed: string
     rail: string
     dot: string
-    unclaimed: string
   }
 > = {
   night: {
@@ -22,16 +21,14 @@ export const TONE: Record<
     sub: 'text-[#B9BEE6]',
     dashed: 'border-[#4A5290] text-[#B9BEE6]',
     rail: 'bg-[#2A3270]',
-    dot: 'bg-[#FFC857]',
-    unclaimed: 'border-[#FFC857] text-[#FFC857]'
+    dot: 'bg-[#FFC857]'
   },
   day: {
     row: 'border border-[#D5E0D3] bg-white text-[#12301F]',
     sub: 'text-[#4A6353]',
     dashed: 'border-[#8FAE98] text-[#4A6353]',
     rail: 'bg-[#B7CDBD]',
-    dot: 'bg-[#1F7A4D]',
-    unclaimed: 'border-[#1F7A4D] text-[#17603C]'
+    dot: 'bg-[#1F7A4D]'
   }
 }
 

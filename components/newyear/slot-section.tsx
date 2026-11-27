@@ -3,9 +3,10 @@
 import * as React from 'react'
 import { cn } from '@/lib/utils'
 import { KINDS, LIMITS } from '@/lib/newyear/config'
+import { getSavedName } from '@/lib/newyear/identity'
 import type { DayId, Item, Slot } from '@/lib/newyear/types'
 import type { Planner } from '@/lib/newyear/use-planner'
-import { ItemDetail, ReactionLine } from './item-detail'
+import { CardMeta, ItemDetail, confirmRemoveItem } from './item-detail'
 import { ItemForm, useRevealOnMount } from './item-form'
 import { FOCUS, KIND_TAG, TONE, type Tone } from './styles'
 
@@ -130,6 +131,7 @@ export function SlotSection({
                 }}
                 onCancel={() => setOpen({ type: 'detail', itemId: item.id })}
                 onDelete={() => {
+                  if (!confirmRemoveItem(item, planner)) return
                   planner.removeItem(item.id)
                   setOpen(null)
                 }}
@@ -141,6 +143,11 @@ export function SlotSection({
                 planner={planner}
                 onEdit={() => setOpen({ type: 'edit', itemId: item.id })}
                 onClose={() => setOpen(null)}
+                onDelete={() => {
+                  if (!confirmRemoveItem(item, planner)) return
+                  planner.removeItem(item.id)
+                  setOpen(null)
+                }}
               />
             ) : (
               <button
@@ -164,33 +171,26 @@ export function SlotSection({
                 </span>
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="break-words text-[15px]">{item.title}</span>
-                  <ReactionLine
+                  <CardMeta
+                    who={item.who}
                     reactions={planner.reactionsFor(item.id)}
                     commentCount={planner.commentsFor(item.id).length}
                     className={cn('mt-0.5 text-[15px]', t.sub)}
                   />
                 </span>
-                {item.who ? (
-                  <span className={cn('max-w-[40%] shrink-0 truncate text-[13px]', t.sub)}>
-                    {item.who}
-                  </span>
-                ) : (
-                  <span
-                    className={cn(
-                      'flex h-7 shrink-0 items-center rounded-full border border-dashed px-2.5 text-[13px]',
-                      t.unclaimed
-                    )}
-                  >
-                    {item.kind === 'show' ? '誰負責？' : '誰帶？'}
-                  </span>
-                )}
               </button>
             )
           )}
 
           {adding ? (
             <ItemForm
-              initial={{ title: '', kind: 'food', who: '', slotId: slot.id }}
+              initial={{
+                title: '',
+                kind: 'food',
+                // 提議者預設是自己（留言時記住的名字）
+                who: getSavedName(),
+                slotId: slot.id
+              }}
               slotsByDay={planner.slotsByDay}
               submitLabel={`加到「${slot.name}」`}
               onSubmit={draft => {

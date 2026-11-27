@@ -35,6 +35,7 @@ export function ItemForm({
   const [draft, setDraft] = React.useState<ItemDraft>(initial)
   const titleId = React.useId()
   const whoId = React.useId()
+  const whoRef = React.useRef<HTMLInputElement>(null)
   const slotId = React.useId()
   const canSubmit = draft.title.trim().length > 0
   const formRef = useRevealOnMount()
@@ -56,7 +57,7 @@ export function ItemForm({
       className="flex scroll-mb-24 scroll-mt-4 flex-col gap-2.5 rounded-[14px] border-2 border-[#1F7A4D] bg-white p-3.5 text-[#12301F]"
     >
       <label htmlFor={titleId} className="sr-only">
-        要帶什麼、做什麼
+        想吃什麼、玩什麼、做什麼
       </label>
       <input
         id={titleId}
@@ -64,7 +65,7 @@ export function ItemForm({
         autoFocus
         autoComplete="off"
         maxLength={LIMITS.title}
-        placeholder="要帶什麼、做什麼？"
+        placeholder="吃什麼、玩什麼、做什麼？"
         value={draft.title}
         onChange={event => setDraft({ ...draft, title: event.target.value })}
         className={cn(FIELD, FOCUS)}
@@ -93,23 +94,41 @@ export function ItemForm({
         })}
       </div>
 
-      <label htmlFor={whoId} className="sr-only">
-        {draft.kind === 'show' ? '誰負責' : '誰帶'}
-      </label>
-      <input
-        id={whoId}
-        type="text"
-        autoComplete="off"
-        maxLength={LIMITS.who}
-        placeholder={
-          draft.kind === 'show'
-            ? '誰負責？（可以先空著）'
-            : '誰帶？（可以先空著）'
-        }
-        value={draft.who}
-        onChange={event => setDraft({ ...draft, who: event.target.value })}
-        className={cn(FIELD, FOCUS)}
-      />
+      <div className="flex items-center gap-2">
+        <label htmlFor={whoId} className="shrink-0 text-sm text-[#4A6353]">
+          提議者
+        </label>
+        <div className="relative min-w-0 flex-1">
+          <input
+            ref={whoRef}
+            id={whoId}
+            type="text"
+            autoComplete="nickname"
+            maxLength={LIMITS.who}
+            placeholder="誰的點子？（可以空著）"
+            value={draft.who}
+            onChange={event => setDraft({ ...draft, who: event.target.value })}
+            className={cn(FIELD, draft.who && 'pr-11', FOCUS)}
+          />
+          {/* 有字時給一個「×」，一下就能清空（預先填的名字也看得出可以不填） */}
+          {draft.who && (
+            <button
+              type="button"
+              aria-label="清掉提議者"
+              onClick={() => {
+                setDraft({ ...draft, who: '' })
+                whoRef.current?.focus()
+              }}
+              className={cn(
+                'absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-[10px] text-xl leading-none text-[#4A6353]',
+                FOCUS
+              )}
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          )}
+        </div>
+      </div>
 
       {showSlot && (
         <div className="flex items-center gap-2">
@@ -150,11 +169,11 @@ export function ItemForm({
             type="button"
             onClick={onDelete}
             className={cn(
-              'h-11 rounded-[10px] px-3 text-[15px] text-[#A32018]',
+              '-ml-1 h-11 rounded-[10px] px-2 text-[15px] text-[#A32018]',
               FOCUS
             )}
           >
-            刪除
+            刪除這項
           </button>
         )}
         <button

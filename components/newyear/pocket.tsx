@@ -3,9 +3,10 @@
 import * as React from 'react'
 import { cn } from '@/lib/utils'
 import { KIND_ORDER, KINDS, LIMITS } from '@/lib/newyear/config'
+import { getSavedName } from '@/lib/newyear/identity'
 import type { Item, Kind } from '@/lib/newyear/types'
 import type { Planner } from '@/lib/newyear/use-planner'
-import { ItemDetail, ReactionLine } from './item-detail'
+import { CardMeta, ItemDetail, confirmRemoveItem } from './item-detail'
 import { ItemForm } from './item-form'
 import { FOCUS, KIND_CHIP, KIND_TAG } from './styles'
 
@@ -50,7 +51,8 @@ export function Pocket({ items, planner, expanded, setExpanded }: PocketProps) {
     event.preventDefault()
     const trimmed = title.trim()
     if (!trimmed) return
-    planner.addItem({ title: trimmed, kind, who: '', slotId: null })
+    // 提議者記成自己（留言時記住的名字），之後可以在「編輯」改
+    planner.addItem({ title: trimmed, kind, who: getSavedName(), slotId: null })
     setTitle('')
   }
 
@@ -125,6 +127,7 @@ export function Pocket({ items, planner, expanded, setExpanded }: PocketProps) {
                   setDetailId(editing.id)
                 }}
                 onDelete={() => {
+                  if (!confirmRemoveItem(editing, planner)) return
                   planner.removeItem(editing.id)
                   setEditingId(null)
                 }}
@@ -140,6 +143,11 @@ export function Pocket({ items, planner, expanded, setExpanded }: PocketProps) {
                   setEditingId(detail.id)
                 }}
                 onClose={() => setDetailId(null)}
+                onDelete={() => {
+                  if (!confirmRemoveItem(detail, planner)) return
+                  planner.removeItem(detail.id)
+                  setDetailId(null)
+                }}
               />
             ) : items.length > 0 ? (
               <ul className="flex flex-wrap gap-2">
@@ -167,14 +175,10 @@ export function Pocket({ items, planner, expanded, setExpanded }: PocketProps) {
                       <span className="flex min-w-0 flex-col">
                         <span className="break-words text-sm">
                           {item.title}
-                          {item.who && (
-                            <span className="ml-1.5 text-xs text-[#4F4741]">
-                              {item.who}
-                            </span>
-                          )}
                         </span>
-                        {/* 人數放在標題下一行，避免把標題擠窄 */}
-                        <ReactionLine
+                        {/* 提議者與人數放在標題下一行，避免把標題擠窄 */}
+                        <CardMeta
+                          who={item.who}
                           reactions={planner.reactionsFor(item.id)}
                           commentCount={planner.commentsFor(item.id).length}
                           className="gap-x-2 text-[13px] text-[#4F4741]"
@@ -223,7 +227,7 @@ export function Pocket({ items, planner, expanded, setExpanded }: PocketProps) {
                     type="text"
                     autoComplete="off"
                     maxLength={LIMITS.title}
-                    placeholder="想帶什麼？想玩什麼？"
+                    placeholder="想吃什麼？想玩什麼？"
                     value={title}
                     onChange={event => setTitle(event.target.value)}
                     className={cn(

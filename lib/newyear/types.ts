@@ -13,7 +13,7 @@ export interface Item {
   id: string
   title: string
   kind: Kind
-  /** 誰帶／誰負責，可以是空字串 */
+  /** 提議者（誰的點子），可以是空字串。資料庫欄位沿用 who */
   who: string
   /** null 代表還在口袋裡，沒排時段 */
   slotId: string | null
